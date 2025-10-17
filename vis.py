@@ -14,17 +14,13 @@ FR_ids = [3, 4]  # Front Right
 BL_ids = [5, 6]  # Back Left
 BR_ids = [7, 8]  # Back Right
 
+t_points = 5
+
 def rad_to_servo(rad):
     """Zamienia kąt w radianach na wartość serwa (0-4095)"""
     center = 2048
     scale = 2048 / 3.1415926535
     return 4095 - int(round(rad * scale + center))
-
-def SyncMoveTo(servo_dict, max_speed, acc, wait):
-    """Symulacja funkcji ruchu serw - w prawdziwym robocie tu będzie komunikacja z serwami"""
-    print(f"Ruch serw: {servo_dict}")
-    # W prawdziwym kodzie tutaj będzie:
-    # real_SyncMoveTo(servo_dict, max_speed, acc, wait)
 
 def solve_ik(x_target, y_target, d=d, r1=r1, r2=r2):
     L1 = math.sqrt((x_target - d/2)**2 + (y_target)**2)
@@ -54,13 +50,13 @@ def generateSwing():
     points = []
     
     # FAZA 1: Przenoszenie (łuk w górę)
-    for angle in np.linspace(math.pi, 0, 50):
+    for angle in np.linspace(math.pi, 0, t_points):
         x = -20 * math.cos(angle)  
         y = -60 + 20 * math.sin(angle)
         points.append((x, y))
     
     # FAZA 2: Podpora (powrót po linii)
-    for t in np.linspace(0, 1, 50):
+    for t in np.linspace(0, 1, t_points):
         x = -20 + 40 * t   
         y = -60
         points.append((x, y))
@@ -71,13 +67,13 @@ def generateStance():
     points = []
     
     # FAZA 1: Podpora (ruch poziomo)
-    for t in np.linspace(0, 1, 50):
+    for t in np.linspace(0, 1, t_points):
         x = -20 + 40 * t  
         y = -60
         points.append((x, y))
     
     # FAZA 2: Przenoszenie (powrót po łuku)  
-    for angle in np.linspace(0, math.pi, 50):  
+    for angle in np.linspace(0, math.pi, t_points):  
         x = 20 * math.cos(angle)  
         y = -60 + 20 * math.sin(angle)
         points.append((x, y))
@@ -91,7 +87,7 @@ def main():
     traj_BL = generateStance()
     traj_BR = generateSwing()
     
-    for i in range(100):
+    for i in range(2 * t_points):
         # Pobierz aktualne pozycje dla wszystkich nóg
         fl_x, fl_y = traj_FL[i]
         fr_x, fr_y = traj_FR[i]
@@ -111,10 +107,6 @@ def main():
             BL_ids[0]: rad_to_servo(t1_bl), BL_ids[1]: rad_to_servo(t2_bl),  # BL
             BR_ids[0]: rad_to_servo(t1_br), BR_ids[1]: rad_to_servo(t2_br),  # BR
         }
-
-        # Wyślij komendę do serw
-        SyncMoveTo(servo_dict=servo_positions, max_speed=800, acc=30, wait=True)
-        time.sleep(0.02)
     
 def visualize_single_leg_trajectory(trajectory_type="swing"):
     if trajectory_type == "swing":
@@ -334,11 +326,65 @@ def visualize_single_point(x_target, y_target):
         plt.ylabel('Y [mm]')
         plt.show()
 
+def visualize_all_points():
+    # Generowanie trajektorii
+    trajectory = generateSwing()
+    x_a1, y_a1 = -d/2, 0  # Serwo 1
+    x_a2, y_a2 = d/2, 0   # Serwo 2
+
+    # Animacja ruchu po trajektorii
+    plt.figure(figsize=(15, 13))
+
+    # Rysowanie całej trajektorii
+    traj_x = [p[0] for p in trajectory]
+    traj_y = [p[1] for p in trajectory]
+    plt.plot(traj_x, traj_y, 'g-', alpha=0.3, linewidth=2, label='Trajektoria')
+
+    # Wybrane punkty do animacji
+    step = 1  # co który punkt pokazujemy
+    for i in range(0, len(trajectory), step):
+        x_p, y_p = trajectory[i]
+
+        try:
+            # Obliczenie kątów
+            theta1, theta2 = solve_ik(x_p, y_p)
+
+            # Położenie przegubów B
+            x_b1 = x_a1 + r1 * math.cos(theta1)
+            y_b1 = y_a1 + r1 * math.sin(theta1)
+            x_b2 = x_a2 + r1 * math.cos(theta2)
+            y_b2 = y_a2 + r1 * math.sin(theta2)
+
+            # Rysowanie konfiguracji robota
+            color_intensity = i / len(trajectory)
+            plt.plot([x_a1, x_b1, x_p], [y_a1, y_b1, y_p], 'ro-', alpha=0.5, linewidth=1)
+            plt.plot([x_a2, x_b2, x_p], [y_a2, y_b2, y_p], 'bo-', alpha=0.5, linewidth=1)
+            plt.scatter(x_p, y_p, color='green', s=30, alpha=0.7)
+
+        except ValueError as e:
+            print(f"Pominięty punkt {i}: {e}")
+            continue
+
+    # Oznaczenie punktów początku i końca
+    plt.scatter(20, -70, color='red', s=100, label='Punkt 1 (20, -70)')
+    plt.scatter(-20, -70, color='blue', s=100, label='Punkt 2 (-20, -70)')
+    plt.scatter(0, -50, color='orange', s=80, label='Najwyższy punkt łuku')
+
+    # Podstawa robota
+    plt.plot([x_a1, x_a2], [y_a1, y_a2], 'k-', linewidth=3, label='Podstawa robota')
+
+    plt.axis('equal')
+    plt.grid(True)
+    plt.legend()
+    plt.title('2-DOF Planar Parallel Robot - Trajektoria z łukiem')
+    plt.xlabel('X [mm]')
+    plt.ylabel('Y [mm]')
+    plt.show()
+
 
 # solve_ik(20, -60)
-visualize_single_leg_trajectory("swing")
-visualize_single_leg_trajectory("stance")
-visualize_single_point(20, -60)
+# visualize_single_leg_trajectory("swing")
+# visualize_single_leg_trajectory("stance")
+# visualize_single_point(20, -60)
 # visualize_single_point(-65, -30)
-
-    
+visualize_all_points()   

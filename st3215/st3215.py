@@ -492,23 +492,10 @@ class ST3215(protocol_packet_handler):
         return self.sts_tohost(sts_present_speed, 15), sts_comm_result, sts_error
 
     def SyncMoveTo(self, servo_dict, max_speed=2400, acc=50, wait=False):
-        """
-        Move multiple servos to predefined positions simultaneously with synchronized motion.
-        All servos will start and finish movement at the same time.
-
-        :param servo_dict: Dictionary where keys are servo IDs and values are target positions
-                        Example: {1: 1024, 2: 2048, 3: 512}
-        :param max_speed: Maximum allowed speed for the fastest servo (0-3400). Unit: Step/s
-        :param acc: Acceleration value for all servos (0-254). Unit: 100 step/s^2 (optional, 50 by default)
-        :param wait: Wait for all servos to reach their positions before returning (optional, False by default)
-
-        :return: True if successful, None in case of error
-        """
         with self.lock:
-            # Create separate GroupSyncWrite instance for position writing
             position_sync_write = GroupSyncWrite(self, STS_GOAL_POSITION_L, 2)
             
-            # Read current positions of all servos
+            # Odczytaj aktualne pozycje wszystkich serw
             current_positions = {}
             for sts_id in servo_dict.keys():
                 curr_pos = self.ReadPosition(sts_id)
@@ -516,7 +503,12 @@ class ST3215(protocol_packet_handler):
                     return None
                 current_positions[sts_id] = curr_pos
             
-            # Calculate distances for each servo
+            # DEBUG: Wydrukuj pozycje startowe i docelowe
+            print("=== SyncMoveTo Debug ===")
+            for sts_id, target_pos in servo_dict.items():
+                print(f"Servo {sts_id}: Current={current_positions[sts_id]}, Target={target_pos}")
+            
+            # Oblicz dystanse i znajdź maksymalny
             distances = {}
             max_distance = 0
             for sts_id, target_pos in servo_dict.items():
@@ -525,90 +517,84 @@ class ST3215(protocol_packet_handler):
                 if distance > max_distance:
                     max_distance = distance
             
-            # If no movement needed
+            print(f"Max distance: {max_distance}")
+            
+            # Jeśli nie ma ruchu
             if max_distance == 0:
+                print("No movement needed")
                 return True
             
-            # Calculate individual speeds based on distance proportion
-            # to ensure all servos finish at the same time
+            # Oblicz prędkości proporcjonalne do dystansu
             calculated_speeds = {}
             for sts_id, distance in distances.items():
                 if distance > 0:
-                    # Speed is proportional to distance, but capped at max_speed
                     speed = int((distance / max_distance) * max_speed)
-                    # Ensure minimum speed to avoid very slow movements
-                    speed = max(speed, 100)  # Minimum 100 steps/s
-                    speed = min(speed, max_speed)  # Cap at max_speed
+                    speed = max(speed, 100)  # Min 100
+                    speed = min(speed, max_speed)
                     calculated_speeds[sts_id] = speed
                 else:
                     calculated_speeds[sts_id] = 0
             
-            # Configure each servo individually first
+            # DEBUG: Wydrukuj obliczone prędkości
+            print("Calculated speeds:")
+            for sts_id, speed in calculated_speeds.items():
+                print(f"Servo {sts_id}: Speed={speed}, Distance={distances[sts_id]}")
+            
+            # Skonfiguruj każde serwo
             for sts_id, target_pos in servo_dict.items():
-                if distances[sts_id] == 0:  # Skip servos that don't need to move
+                if distances[sts_id] == 0:
                     continue
                 
-                # Set mode to position control
-                res_mode = self.SetMode(sts_id, 0)
-                if res_mode is None:
+                if self.SetMode(sts_id, 0) is None:
                     return None
                 
-                # Set acceleration (same for all servos)
-                res_acc = self.SetAcceleration(sts_id, acc)
-                if res_acc is None:
+                if self.SetAcceleration(sts_id, acc) is None:
                     return None
                 
-                # Set calculated individual speed
-                res_speed = self.SetSpeed(sts_id, calculated_speeds[sts_id])
-                if res_speed is None:
+                if self.SetSpeed(sts_id, calculated_speeds[sts_id]) is None:
                     return None
             
-            # Prepare position data for sync write
+            # Przygotuj dane pozycji do sync write
             for sts_id, target_pos in servo_dict.items():
-                if distances[sts_id] == 0:  # Skip servos that don't need to move
+                if distances[sts_id] == 0:
                     continue
                 
-                # Prepare position data for sync write (2 bytes: L, H)
                 position_data = [
                     self.sts_lobyte(target_pos),
                     self.sts_hibyte(target_pos)
                 ]
                 
-                # Add to sync write group
                 if not position_sync_write.addParam(sts_id, position_data):
                     return None
             
-            # Send sync write command to all servos simultaneously
-            if position_sync_write.data_dict:  # Only send if there are servos to move
+            # Wyślij komendę sync write
+            if position_sync_write.data_dict:
                 comm_result = position_sync_write.txPacket()
                 if comm_result != COMM_SUCCESS:
                     return None
             
-            # Calculate estimated movement time for wait functionality
+            # Czekaj na zakończenie ruchu (jeśli wait=True)
             if wait and position_sync_write.data_dict:
-                # Time estimation based on trapezoidal velocity profile
-                time_to_max_speed = max_speed / (acc * 100)  # Time to reach max speed
-                distance_to_max_speed = 0.5 * (acc * 100) * time_to_max_speed ** 2
+                # Szacunek czasu ruchu: max_distance / max_speed
+                movement_time = max_distance / max_speed
+                print(f"Waiting {movement_time:.2f} seconds for movement completion")
+                time.sleep(movement_time)
                 
-                if max_distance <= 2 * distance_to_max_speed:
-                    # Triangle profile - never reaches max speed
-                    movement_time = 2 * math.sqrt(max_distance / (acc * 100))
-                else:
-                    # Trapezoid profile - reaches max speed
-                    movement_time = time_to_max_speed + (max_distance - 2 * distance_to_max_speed) / max_speed
+                # DEBUG: Sprawdź pozycje po ruchu
+                final_positions = {}
+                for sts_id in servo_dict.keys():
+                    final_pos = self.ReadPosition(sts_id)
+                    if final_pos is not None:
+                        final_positions[sts_id] = final_pos
                 
-                # Add safety margin and wait
-                time.sleep(movement_time * 1.2)
-                
-                # Verify all servos reached their target positions
-                for sts_id, target_pos in servo_dict.items():
-                    if distances[sts_id] > 0:  # Only check servos that should have moved
-                        current_pos = self.ReadPosition(sts_id)
-                        if current_pos is None or abs(current_pos - target_pos) > 15:
-                            return None
+                print("Final positions after movement:")
+                for sts_id, final_pos in final_positions.items():
+                    target_pos = servo_dict[sts_id]
+                    error = abs(target_pos - final_pos)
+                    print(f"Servo {sts_id}: Target={target_pos}, Final={final_pos}, Error={error}")
             
             return True
-        
+                    
     def LockEprom(self, sts_id):
         """
         Lock the servo Eeprom.
