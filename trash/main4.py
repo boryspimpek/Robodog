@@ -17,11 +17,11 @@ FR_ids = [3, 4]  # Front Right
 BL_ids = [5, 6]  # Back Left
 BR_ids = [7, 8]  # Back Right
 
-t_points = 10
-swing_width=40
-swing_height=20
+t_points = 5
+swing_width=20
+swing_height=10
 base_y=-60
-x_offset = 0
+x_offset = -20
 
 def rad_to_servo(rad):
     """Zamienia kąt w radianach na wartość serwa (0-4095)"""
@@ -69,14 +69,14 @@ def generateSwing(swing_width=swing_width, swing_height=swing_height, base_y=bas
     half_width = swing_width / 2
 
     # FAZA 1: Przenoszenie (łuk w górę)
-    for angle in np.linspace(math.pi, 0, t_points, endpoint=True):
-        x = half_width * math.cos(angle) + x_offset
+    for angle in np.linspace(math.pi, 0, t_points, endpoint=False):
+        x = -half_width * math.cos(angle) + x_offset
         y = base_y + swing_height * math.sin(angle)
         points.append((x, y))
 
     # FAZA 2: Podpora (powrót po linii)
-    for t in np.linspace(0, 1, t_points, endpoint=False):  
-        x = half_width - swing_width * t + x_offset
+    for t in np.linspace(0, 1, t_points, endpoint=False):  # tutaj zostawiamy endpoint=True, bo to ostatni punkt całego ruchu
+        x = -half_width + swing_width * t + x_offset
         y = base_y
         points.append((x, y))
 
@@ -87,13 +87,13 @@ def generateStance(swing_width=swing_width, swing_height=swing_height, base_y=ba
     half_width = swing_width / 2
 
     # FAZA 1: Podpora (ruch poziomo)
-    for t in np.linspace(0, 1, t_points, endpoint=True):
+    for t in np.linspace(0, 1, t_points, endpoint=False):
         x = -half_width + swing_width * t + x_offset
         y = base_y
         points.append((x, y))
 
     # FAZA 2: Przenoszenie (powrót po łuku)
-    for angle in np.linspace(0, math.pi, t_points, endpoint=True):
+    for angle in np.linspace(0, math.pi, t_points, endpoint=False):
         x = half_width * math.cos(angle) + x_offset
         y = base_y + swing_height * np.sin(angle)
         points.append((x, y))
@@ -109,41 +109,38 @@ def plot(trajectory):
     plt.plot(x_coords[0], y_coords[0], 'ro', markersize=8)  # czerwone kółko na pierwszym punkcie
     plt.show()
 
-def start_trot_gait(leg_ids, trajectory_points, speed=2400, acc=30, delay=0.1):
-    # print(f"Liczba punktów trajektorii: {len(trajectory_points)}")
+def start_trot_gait_loop(leg_ids, trajectory_points, cycles=5, speed=2400, acc=30, delay=0.1):
+    print(f"Liczba punktów trajektorii: {len(trajectory_points)}")
     print("Wszystkie punkty trajektorii:")
     for i, point in enumerate(trajectory_points):
         x, y = point
         print(f"  {i}: x={x:.2f}, y={y:.2f}")
     
-    # print("\nWykonywanie ruchu:")
-    for i, point in enumerate(trajectory_points):
-        x, y = point
-        # print(f"Point {i+1}/{len(trajectory_points)}: x={x:.2f}, y={y:.2f}")
-        
-        success = move_leg(leg_ids, x, y, speed, acc)
-        
-        if not success:
-            print(f"Błąd podczas ruchu do punktu {i+1}")
-            break
+    for cycle in range(cycles):
+        for i, point in enumerate(trajectory_points):
+            x, y = point
             
-        time.sleep(delay)
+            success = move_leg(leg_ids, x, y, speed, acc)
+            
+            if not success:
+                print(f"Błąd podczas ruchu do punktu {i+1} w cyklu {cycle+1}")
+                return False
+                
+            time.sleep(delay)
+    return True
 
 def main():
-
-    # plot(generateSwing)
-    # plot(generateStance)
+    # Generuj trajektorie BEZ ostatniego punktu (który pokrywa się z pierwszym)
     swing_trajectory = generateSwing()
     stance_trajectory = generateStance()
     
-    print("=== SWING TRAJECTORY ===")
-    for i in range (5):
-        start_trot_gait(FL_ids, swing_trajectory, speed=2400, acc=250, delay=0.1)
+    print("=== SWING TRAJECTORY (5 cykli) ===")
+    start_trot_gait_loop(FL_ids, swing_trajectory, cycles=5, speed=2400, acc=250, delay=0.1)
+    
     time.sleep(2)
 
-    # print("\n=== STANCE TRAJECTORY ===")
-    # for i in range (5):
-    #     start_trot_gait(FL_ids, stance_trajectory, speed=2400, acc=250, delay=0.1)        
+    print("\n=== STANCE TRAJECTORY (5 cykli) ===")
+    start_trot_gait_loop(FL_ids, stance_trajectory, cycles=5, speed=2400, acc=250, delay=0.1)
 
 if __name__ == "__main__":
     main()
