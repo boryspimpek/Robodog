@@ -141,9 +141,9 @@ def main():
         start_trot_gait(FL_ids, swing_trajectory, speed=2400, acc=250, delay=0.1)
     time.sleep(2)
 
-    # print("\n=== STANCE TRAJECTORY ===")
-    # for i in range (5):
-    #     start_trot_gait(FL_ids, stance_trajectory, speed=2400, acc=250, delay=0.1)        
+    print("\n=== STANCE TRAJECTORY ===")
+    for i in range (5):
+        start_trot_gait(FL_ids, stance_trajectory, speed=2400, acc=250, delay=0.1)        
 
 if __name__ == "__main__":
     main()
