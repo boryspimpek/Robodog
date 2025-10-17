@@ -1,11 +1,3 @@
-""" To jest kod realizujący trot gait dla quadruped robot dog. 
-Robot ma 4 nogi po dwa serwa na każdą nogę. 
-Konstrukcja nogi wygląda jak 2-DOF planar parallel manipulator. 
-Serwa dla kazdej nogi zamontowane są na tym samym poziomie obok siebie, 
-odleglośc miedzy osiami serw wynosi d mm. Każda noga ma dwa ogniwa o długościach r1 i r2 mm. 
-Nogi FL i BR są w tej samej fazie, zaczynają ruch po łuku, 
-nogi FR i BL są w tej samej fazie zaczynają ruch po lini. """
-
 import math
 import time
 from matplotlib import pyplot as plt
@@ -15,9 +7,7 @@ from st3215 import ST3215
 servo = ST3215('COM3')
 
 # Konfiguracja
-## LF [1,2], RF [3,4], LB [5,6], RB [7,8]
-
-sts_id = [1, 2, 3, 4, 5, 6, 7, 8,]
+sts_id = [1, 2]
 acc = 250
 speed = 2400
 r1 = 40.0
