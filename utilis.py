@@ -14,14 +14,32 @@ servo = ST3215('COM3')
 # print(alive := servo.PingServo(1))
 
 ######################## Change ID os servo
-# servo.ChangeId(2, 1)
-# time.sleep(1)
+# servo.ChangeId(1, 4)
+# time.sleep(3)
 # print(servos := servo.ListServos())
 
 ####################### Define middle point
-# servo.DefineMiddle(2)
-# time.sleep(2)
-# print(position := servo.ReadPosition(2))
+# servo.DefineMiddle(1)
+# time.sleep(5)
+# print(position := servo.ReadPosition(1))
 
+
+
+
+servo.MoveTo(4, 3072, 1000, 50, True)
+# servo.MoveTo(4, 2903, 1000, 50, True)
+
+
+
+
+
+
+
+
+# servo_positions = {1: 3757, 2: 2903}  
+# servo.SyncMoveTo(servo_positions, max_speed=800, acc=30, wait=False)
+
+# servo_positions = {1: 3239, 2: 2385}  
+# servo.SyncMoveTo(servo_positions, max_speed=800, acc=30, wait=False)
 
 

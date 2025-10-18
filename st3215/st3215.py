@@ -26,6 +26,10 @@ class ST3215(protocol_packet_handler):
         self.groupSyncWrite = GroupSyncWrite(self, STS_ACC, 7)
         self.lock = threading.Lock()
 
+    def rad_to_servo(self, rad):
+        center = 2048
+        scale = 2048 / 3.1415926535
+        return 4095 - int(round(rad * scale + center))
 
     def PingServo(self, sts_id):
         """
