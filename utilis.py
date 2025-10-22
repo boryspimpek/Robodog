@@ -24,16 +24,9 @@ servo = ST3215('COM3')
 # print(position := servo.ReadPosition(1))
 
 
-
-
-servo.MoveTo(4, 3072, 1000, 50, True)
-# servo.MoveTo(4, 2903, 1000, 50, True)
-
-
-
-
-
-
+# servo.MoveTo(1, 0, 2400, 0, False)
+# time.sleep(0.5)
+# servo.MoveTo(2, 3072, 2400, 0, False)
 
 
 # servo_positions = {1: 3757, 2: 2903}  
